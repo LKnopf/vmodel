@@ -85,6 +85,9 @@ def parse_vmodel_args() -> argparse.Namespace:
     experiment.add_argument('--flee-strength', type=float, default=5, metavar='NP',
                             help='magnitude of flee force')
     
+    experiment.add_argument('--flee-ang', type=float, default=30, metavar='NP',
+                            help='fleeing angle for prey')
+    
     experiment.add_argument('--hunt-str', type=float, default=1, metavar='NP',
                             help='magnitude of hunt force')
     
@@ -106,7 +109,7 @@ def parse_vmodel_args() -> argparse.Namespace:
     experiment.add_argument('--attraction-prey', type=float, default=3, metavar='NP',
                             help='magnitude of prey-prey attraction')
     
-    experiment.add_argument('--repulsion-pred', type=float, default=1, metavar='NP',
+    experiment.add_argument('--repulsion-pred', type=float, default=21, metavar='NP',
                             help='magnitude of pred-pred repulsion')
     
     experiment.add_argument('--repradius-prey', type=float, default=1.5, metavar='NP',
@@ -129,7 +132,26 @@ def parse_vmodel_args() -> argparse.Namespace:
 
     experiment.add_argument('--pred-time', type=int, default=200, metavar='PT',
                             help='time predator appears')
+    
+    experiment.add_argument('--pred-hunt', type=int, default=1, metavar='PH',
+                            help='behavior of predator, 1 = continous, 2 = one attack')
+    
+    experiment.add_argument('--pred-angle', type=int, default=180, metavar='PA',
+                            help='angle relative to swarm velocity the predator gets initialized with, if negative, random angles are chosen')
+    
+    experiment.add_argument('--pred-dist', type=int, default=10, metavar='PD',
+                            help='distance to COM of prey the predator gets initialized with')
+    
+    experiment.add_argument('--col-style', type=int, default=1, metavar='CS',
+                            help='0: no collisions, 1: only react to closest collision, 2: account for multiple collisions')
+    experiment.add_argument('--trans-pred', type=int, default=0, metavar='TP',
+                            help='time frame after pred-time during which preds do not hunt to allow for lattice formation')
+    
+    experiment.add_argument('--pred-segments', type=int, default=0, metavar='PSG',
+                            help='amount od predator segments, 0 for single particle predator')
 
+    experiment.add_argument('--pred-length', type=int, default=3, metavar='PLN',
+                            help='distance between predator segments')
     # Perception arguments
     perception = parser.add_argument_group('perception arguments')
     perception.add_argument('--radius', type=float, default=0.25, metavar='F',

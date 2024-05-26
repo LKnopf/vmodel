@@ -7,7 +7,7 @@ import math
 
 
 
-def flock(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: np.ndarray, args):
+def flock(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: np.ndarray, dist_full, args):
     
     coll = False
     dt = args.delta_time
@@ -32,7 +32,7 @@ def flock(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: np.n
     n_rep = 0
     
     for i in range(len(pos)):
-        dist = np.linalg.norm(pos[i])
+        dist = dist_full[i]
         pos_dif[i] = pos[i] / dist
         f_repChange, coll = att(dist, np.array(pos_dif[i]), args)
         #f_repChange, coll = attDRA(dist, np.array(pos_dif[i]), args)
@@ -54,7 +54,7 @@ def flock(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: np.n
     return force
 
 
-def flock_col(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: np.ndarray, t, idx_self, idx, args):
+def flock_col(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: np.ndarray, t, idx_self, idx, dist_full, args):
     
     col_set = False
     dt = args.delta_time
@@ -63,18 +63,10 @@ def flock_col(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: 
     
     pos_dif = pos
     
-    
-    
-    #pos_dif[:,0] -= pos_self[0]
-    #pos_dif[:,1] -= pos_self[1]
-    
 
     preySize = 2*args.prey_size+4*args.delta_time
 
     
-    
-    
-
     f_rep = np.zeros(2)
     vel_col = np.zeros(2)
     idx_front = []
@@ -82,12 +74,9 @@ def flock_col(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: 
 
     
     for i in range(len(pos)):
-        #print(i, vel[i])
-        dist = np.linalg.norm(pos[i])
-        
+        dist = dist_full[i]
         
         if (abs(dist) < preySize):
-            #pos_dif[i] = pos[i] / dist
             if t/dt <= 10:
                 f_repChange, coll = col(dist, np.array(pos_dif[i]), args)
             else:
@@ -100,21 +89,27 @@ def flock_col(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: 
                 idx_front.append(i)
                 dist_store.append(abs(dist))
                 col_set = "front"
-                #vel_col = avoid_col(pos[i], vel_self, vel[i], args)
-                #return f_rep, col_set, vel_col
 
     if len(idx_front) > 0:
-        #for checking all collisions
-        vel_col = avoid_col_mult(pos, vel_self, vel, idx_front, args)
-        
-        #for only closest collision
-        #vel_col = avoid_col_mult(pos, vel_self, vel, [idx_front[np.array(dist_store).argmin()]], args)
-        
+        if args.col_style == 2:
+            #for checking all collisions
+            vel_col = avoid_col_mult(pos, vel_self, vel, idx_front, args)
+        elif args.col_style == 1:
+            #for only closest collision
+            vel_col = avoid_col_mult(pos, vel_self, vel, [idx_front[np.array(dist_store).argmin()]], args)
+
 
 
         
     if len(pos) == 0:
         f_rep = f_rep * 0
+        
+    
+    #part for physical world limits
+    sizebox = 10 
+    if abs(pos_self[0])+args.prey_size+args.delta_time > sizebox or abs(pos_self[1]) +args.prey_size+args.delta_time > sizebox:
+    	col_set = "front"
+    	vel_col = -vel_self
 
 
 
@@ -135,7 +130,7 @@ def addForces(flock, flee, vel_self, args, seekPrey = False, pred=False):
     #phi = math.fmod(2*math.pi+phi, 2 * math.pi)
     
     
-    force = flock+flee
+    force = (flock+flee)
     
     phi_f_dir = np.arctan2(force[1],force[0])
 
@@ -158,21 +153,21 @@ def addForces(flock, flee, vel_self, args, seekPrey = False, pred=False):
     if abs(vel_self[0]) + abs(vel_self[1]) != 0:
 
         vproj = math.sqrt(vel_self[0]*vel_self[0] + vel_self[1]*vel_self[1])
-        #vproj = 1
-        #print("actual add",((phi_f*dt + noise)) / vproj, vproj)
-        #print("sin",np.sin(phi),"cos",np.cos(phi), "sinmult",force[0]*np.sin(phi),"cosmult",force[1]*np.cos(phi))
+
         phi += ((phi_f*dt + noise)) / vproj
         
         phi_diff_after = phi-phi_f_dir
         
-        #print("phi_before", phi_before, "phi_f", phi_f_dir, "phi_diff", phi_diff, "phi_after", phi, "phi_diff_after", phi_diff_after)
-        if np.sign(phi_diff) != np.sign(phi_diff_after):
-            phi = phi_f_dir
+
+        #check later if needed again
+        #if np.sign(phi_diff) != np.sign(phi_diff_after):
+        #    phi = phi_f_dir
 
         phi = math.fmod(phi, 2 * math.pi)
         phi = math.fmod(2*math.pi+phi, 2 * math.pi)
     else:
         phi = math.atan2(force[1], force[0])
+
     
 
 
@@ -217,7 +212,7 @@ def flee(idx_pred_vis, idx, pos, vel, args, pos_self):
         ### change fleeing direction
         
         
-        fleeang = math.pi / 6
+        fleeang = (args.flee_ang/360)*2*math.pi
 
 
         ang = math.atan2(r_ip[1], r_ip[0]) - side * fleeang
@@ -253,7 +248,7 @@ def flee(idx_pred_vis, idx, pos, vel, args, pos_self):
 def att(dist_interaction, dif, args):
       
     l0 = args.repradius_prey
-    l1 = args.attradius_prey
+    l1 = args.repradius_prey
     k_att = args.attraction_prey
     k_rep = args.repulsion_prey
     fstrength = 0
@@ -342,8 +337,7 @@ def col2(pos_col, vel_col, vel_self, dist, args):
         front_self = np.array(vel_self)*args.prey_size
         front_other = np.array(pos_col)+np.array(vel_col)*args.prey_size
         
-        
-        #print("self", front_self, "other", front_other, "col", col_pos)
+
         dist_col_self = np.linalg.norm([front_self[0]-col_pos[0],front_self[1]-col_pos[1]])
         dist_col_other = np.linalg.norm([front_other[0]-col_pos[0],front_other[1]-col_pos[1]])
         #print(dist_col_self, dist_col_other)
@@ -373,11 +367,11 @@ def col2(pos_col, vel_col, vel_self, dist, args):
 
 
 
-def flock_pred(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: np.ndarray, args):
+def flock_pred(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: np.ndarray, dist_pred,  args):
 
     coll = False
     dt = args.delta_time
-    rep_strength = 1.4
+    rep_strength = args.repulsion_pred
     
     phi = math.atan2(vel_self[1],vel_self[0])
     
@@ -403,7 +397,7 @@ def flock_pred(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel:
     f_rep = np.zeros(2)
     
     for i in range(len(pos)):
-        dist = np.linalg.norm(pos[i])
+        dist = dist_pred[i]
         pos_dif[i] = pos[i] / dist
         f_repChange, coll = att_pred(dist, np.array(pos_dif[i]), args)
         f_rep += f_repChange
@@ -429,45 +423,26 @@ def att_pred(dist_interaction, dif, args):
       
     l0 = args.repradius_pred
 
-    k_rep = args.repulsion_pred
-    fstrength = 0
-
 
     coll = False
-    
-    
-    #distance regulation = repulsion + attraction
-    #if (abs(dist_interaction) < preySize):
-    #    fstrength = 100 * (dist_interaction - preySize)
-    #    coll = True
-        
-    if (abs(dist_interaction) < l0):
-        #print("REPULSE")
-        fstrength = k_rep * (dist_interaction - l0)
+
+
+    fstrength = np.exp(-0.5*pow(dist_interaction,2)/pow(l0,2))
         
         
-    #print(dif * fstrength)
-        
-    return (dif * fstrength), coll
+    return (dif * -fstrength), coll
     
     
     
 def get_intersections(x0, y0, r0, x1, y1, r1, dist):
-    # circle 1: (x0, y0), radius r0
-    # circle 2: (x1, y1), radius r1
+
 
     d=dist
 
-    
-    # non intersecting
+
     if d > (r0 + r1):
         return None
-    # One circle within other
-    #if d < abs(r0-r1):
-    #    return None
-    # coincident circles
-    #if d == 0 and r0 == r1:
-    #    return None
+
     else:
         a=(r0**2-r1**2+d**2)/(2*d)
         h=math.sqrt(r0**2-a**2)
@@ -637,8 +612,9 @@ def avoid_col_mult(pos, vel_self, vel, front_idx, args):
 
     pos_new = [0,0]
     for step in np.linspace(dt, 2, int(2/dt)):
-        if step > dt*2:
-            print(step)
+        #use to check for long loops
+        #if step > dt*2:
+            #print(step)
         for angle in np.linspace(0,2*math.pi, 50):
             
             sucAvoid = 0

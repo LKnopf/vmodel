@@ -27,21 +27,6 @@ def angle_between(vhat1, vhat2, tol = 5e-6):
 def getCOM(positions):
     return np.mean(positions, axis = 0)
     
-def check_coll(pos, cmd, args):
-    #print(pos[0], cmd)
-    pos_dif = pos - (cmd*args.delta_time)
-    #print(pos_dif[0])
-    prey_size = 1.1
-    out = cmd
-    
-    for i in range(len(pos_dif)):
-        dist = np.linalg.norm(pos_dif[i])
-        
-        #if dist <= prey_size:
-            #print(dist)
-            #print(i)
-            #out = -limit_norm(pos[i], args.max_speed)
-    return out
 
 def filter_front(pos, vel_self, idx, args):
     out_idx = []
@@ -59,21 +44,22 @@ def filter_front(pos, vel_self, idx, args):
     
     
     
-def filter_angle(pos, vel_self, idx, args, blind_angle):
+def filter_angle(dist_full, pos, vel_self, idx, args, blind_angle):
     out_idx = []
     if sum(vel_self) != 0:
         vel_self = vel_self/np.linalg.norm(vel_self)
+    
     for i in range(len(idx)):
-
-        ang_pos = angle_between(vel_self, pos[i]/np.linalg.norm(pos[i]))
-
-        if ang_pos < blind_angle:
-            out_idx.append(i)
+        dist = dist_full[i]
+        if dist != 0:
+            ang_pos = angle_between(vel_self, pos[i]/dist)
+            if ang_pos < blind_angle:
+                out_idx.append(i)
             
     return out_idx
 
 
-def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, pred_time):
+def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, pred_time, dist_full):
     """Update a single agent
     Args:
         i: index of focal agent (zero-indexed)
@@ -101,13 +87,16 @@ def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, p
     pos = pos_others - pos_self
     
     vel_self = velocities[i]
-    
-    if sum(vel_self) == 0:
-        print("NO VEL",i)
+     
+    #use to check if vel of pred is calculated correctly
+    #if sum(vel_self) == 0:
+        #print("NO VEL",i)
     
     vel_others = np.delete(velocities, i, axis=0)
     
-
+    vel = vel_others
+    
+    
     
     # pos_waypoint = args.pos_waypoint - pos_self
 
@@ -118,7 +107,9 @@ def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, p
     rad = np.full(len(pos), args.radius)
 
     # Compute relative distances
-    dist = np.linalg.norm(pos, axis=1)
+    dist = dist_full[idx_self, :]
+    dist = np.delete(dist, i, axis=0)
+
     cache.dist = dist.copy()
     # cache.dist = np.insert(dist, i, 0.0)
 
@@ -170,7 +161,7 @@ def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, p
     if args.perception_angle > 0:
         angles_rad = subtended_angle_circle(dist, rad)
         mask = angles_rad > np.deg2rad(args.perception_angle)
-        pos, dist, idx, rad = pos[mask], dist[mask], idx[mask], rad[mask]
+        pos, dist, idx, vel, rad = pos[mask], dist[mask], idx[mask], vel_others[mask], rad[mask]
 
     # Filter out occluded agents
     if args.filter_occluded:
@@ -213,7 +204,7 @@ def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, p
     posF, distF, idxF, velF = pos, dist, idx, vel
     
     if i < args.num_agents:
-        idx_front = filter_angle(pos, vel_self, idx, args, blind_angle = visPrey)
+        idx_front = filter_angle(dist, pos, vel_self, idx, args, blind_angle = visPrey)
         #idx_front_180 = filter_angle(pos, vel_self, idx, args, blind_angle = 0.5*math.pi)
         #idx_all = list(range(len(idx)))
         #idx_back = [x for x in idx_all if x not in idx_front_180]
@@ -226,11 +217,11 @@ def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, p
 
     
     else:
-        idx_front = filter_angle(pos, vel_self, idx, args, blind_angle = visPred)
+        idx_front = filter_angle(dist, pos, vel_self, idx, args, blind_angle = visPred)
         
+
     pos, dist, idx, vel = pos[idx_front], dist[idx_front], idx[idx_front], vel[idx_front]
-    
-    
+
 
     # Save visibility data (after applying perception filtering)
     visibility = np.zeros(len(pos_others), dtype=bool)
@@ -291,6 +282,7 @@ def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, p
 
     pos_prey = pos[idx < args.num_agents-1]
     pos_preyF = posF[idxF < args.num_agents-1]
+    pos_predF = posF[idxF >= args.num_agents-1]
     
 
     #print("pos",pos, idx)
@@ -298,7 +290,11 @@ def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, p
     
     vel_prey = vel[idx < args.num_agents-1]
     vel_preyF = velF[idxF < args.num_agents-1]
+    vel_predF = velF[idxF >= args.num_agents-1]
     
+    dist_prey = dist[idx < args.num_agents-1]
+    dist_preyF = distF[idxF < args.num_agents-1]
+    dist_predF = distF[idxF >= args.num_agents-1]
     
     #create array which contains only preds that i can see
     ################
@@ -318,26 +314,40 @@ def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, p
             #pos_preyF = pos180[idx180 < args.num_agents-1]
             #vel_preyF = vel180[idx180 < args.num_agents-1]
             
+            
+            
+            
             fflee = [0,0]
-            fflock = flock(pos_self, pos_prey , vel_self, vel_prey , args)
-            idx[idx >= args.num_agents-1]
+            fflock = flock(pos_self, pos_prey , vel_self, vel_prey , dist_prey, args)
             
-            fcol, col, vel_col = flock_col(pos_self, pos_preyF , vel_self, vel_preyF , t, idx_self, idxF, args)
-            #fcol, col, vel_col = flock_col(pos_self, pos_preyF , vel_self, vel_preyF , args)
             
-            #fcol = [0,0]
-            #print(fcol)
-            if len(idx_pred_vis) > 0 and pred_time:
+            
+            
+            #idx[idx >= args.num_agents-1]
+            
+            if args.col_style == 0:
+                col = False
+            else:
+                fcol, col, vel_col = flock_col(pos_self, pos_preyF , vel_self, vel_preyF , t, idx_self, idxF, dist_preyF, args)
+
+            if len(idx_pred_vis) > 10 and pred_time:
                 fflee = flee(idx_pred_vis, idx, pos, vel, args, pos_self)
-                #print(fflee)
-            #fflock[0] += fcol[0]
-            #fflock[1] += fcol[1]
-            
+                if args.pred_segments == 1:
+                    for pred_idx in idx_pred_vis:
+                        
+                        pos_long = np.copy(pos)
+        
+                        idx_pred = np.where(idx == pred_idx)[0][0]
+
+                        pos_long[idx_pred] -= args.pred_length*(vel[idx_pred]/np.linalg.norm(vel[idx_pred]))
+                    
+                    fflee = flee(idx_pred_vis, idx, pos_long, vel, args, pos_self)
+                
+
             command_interaction = addForces(fflock, fflee, vel_self, args)
             if col == "front":
-                #print("COLL", i)
                 command_interaction = vel_col
-                #print("FRONT", vel_col)
+
 
 
                 
@@ -346,25 +356,64 @@ def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, p
             command_flee_pred = [0,0]
             seekPrey = False
             col = False
+            fhunt = [0,0]
+
+            if args.pred_hunt == 1:
+                if t >= (args.pred_time+args.trans_pred)*args.delta_time:
+                    if len(pos_prey) == 0:
+                        fhunt = vel_self
+                        seekPrey = True
+                    else:
+                        com_vis = getCOM(pos_prey)
+                        fhunt = limit_norm(com_vis, 1)
 
 
-            if len(pos_prey) == 0:
-                fhunt = vel_self
-                seekPrey = True
-            else:
-                com_vis = getCOM(pos_prey)
-                fhunt = args.hunt_str*limit_norm(com_vis, 1)
-
+                pos_pred = pos[idx >= args.num_agents]
+                vel_pred = vel[idx >= args.num_agents]
+                dist_pred = dist[idx >= args.num_agents]
+                fflock = flock_pred(pos_self, pos_pred , vel_self, vel_pred , dist_pred, args)
                 
-            pos_pred = pos[idx >= args.num_agents]
-            vel_pred = vel[idx >= args.num_agents]
+                if args.col_style == 0:
+                    col = False
+                else:
+                    fcol, col, vel_col = flock_col(pos_self, pos_predF , vel_self, vel_predF , t, idx_self, idxF, dist_predF, args)
+                
+                
+                command_interaction = addForces(np.array(fflock)/2, np.array(fhunt)/2, vel_self, args, seekPrey, pred=True)
+                if col == "front":
+                    command_interaction = vel_col
+                
+                
+            elif args.pred_hunt == 2:
+                if pastCOM == False:
+                    com_dist = getCOM(pos)
+                    if np.linalg.norm(com_dist) < 10 and np.linalg.norm(com_dist) != 0.0 and pred_time:
+                        pastCOM = True
+                        print("PASSED")
+                
+                if pastCOM:
+                    fflock = [0,0]
+                    fhunt = vel_self
+                    
+                    
+                
+                else:
+
+                    com_vis = getCOM(posF)
+                    fhunt = limit_norm(com_vis, 1)
+                    #print("fhunt",fhunt)
+
+
+                    pos_pred = pos[idx >= args.num_agents]
+                    vel_pred = vel[idx >= args.num_agents]
+                    dist_pred = dist[idx >= args.num_agents]
+                    #fflock = flock_pred(pos_self, pos_pred , vel_self, vel_pred , args)
+            
+                command_interaction = fhunt
             
             
+            #command_interaction = addForces(fflock, fhunt, vel_self, args, seekPrey, pred=True)
             
-            fflock = flock_pred(pos_self, pos_pred , vel_self, vel_pred , args)
-            
-            
-            command_interaction = addForces(fflock, fhunt, vel_self, args, seekPrey, pred=True)
 
     
     # Compute final command
@@ -382,12 +431,7 @@ def update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM, p
         command = command * 2
 
         
-    #print(np.linalg.norm(command))
-    if math.isnan(command[0]):
-        command = [0,0]
-        print("NAN", i)
-        #command = command
-    
+
     #if col=="back" or col=="front":
         #print(i, "next")
 

@@ -56,7 +56,7 @@ def pavas2colors(pavas):
 
 
 mode = 'gif' # 'normal', 'pictures', 'movie', 'gif'
-fps = 15
+fps = 60
 dpi = 200
 NsamShow = 4
 sizePrey = 1/4
@@ -91,7 +91,7 @@ args_def = {
 
 args_def = {
 'nprey': 100,
-'npred': 1,
+'npred': 3,
 'frange': 10,
 'fstr': 5,
 'visPred': 300.0,
@@ -106,7 +106,7 @@ args_def = {
 'attRadPrey': 1.5,
 'repCol': 10000000,
 'hstr': 1,
-'steps': 1200,
+'steps': 6000,
     }
 
 
@@ -145,8 +145,8 @@ var_val = [0.01, 1.0, 5.0, 10.0, 25.0, 0.5, 2.0, 5.0, 90.0, 180.0, 300.0]
 var_par = ["npred"]
 var_val = [1]
 
-runs = len(var_par)
-#runs = 1
+
+runs = 1
 
 list_args = []
 for i in range(runs):
@@ -158,37 +158,38 @@ if len(var_par) != len(var_val):
 
 for i in range(runs):
     
-    args = list_args[i]
-    args[var_par[i]] = var_val[i]
-    
+    #args = list_args[i]
+    #args[var_par[i]] = var_val[i]
+    args = args_def
     npred = args["npred"]
     nprey = args["nprey"]
     pred_visangle = 2*math.pi*args["visPred"]/360
     prey_visangle = 2*math.pi*args["visPrey"]/360
+    
 
 
-
-    args_str = '_'.join(f'{k}_{v}' for k, v in args.items())
-    file_h5 = f'{out_str}_{args_str}.states.nc'
-    #file_h5 = "/home/lars/vmodel_output/vmodel_output/noPred/_nprey_100_npred_1_frange_10_fstr_0.0_visPred_300.0_visPrey_330_astr_0.0_dphi_0.0_repPrey_3_repRadPrey_1.5_repPred_1_repRadPred_20_attPrey_3_attRadPrey_1.5_repCol_10000000_hstr_1_steps_1200.states.nc"
-
+    #args_str = '_'.join(f'{k}_{v}' for k, v in args.items())
+    #file_h5 = f'{out_str}_{args_str}.states.nc'
+    file_h5 = "/home/lars/vmodel_output/testlimits__nprey_1_npred_1_frange_10_fstr_0.0_visPred_120_visPrey_280.0_astr_3.0_dphi_0.11_repPrey_3_repRadPrey_1.5_repPred_21_repRadPred_20_attPrey_3_attRadPrey_1.5_repCol_10000000_hstr_1_steps_20000_fangle_30.0_pangle_0.states.nc"
 
 
+    run = i
     #file_h5 = "/home/lars/vmodel/output/state.nc"
-    name = "/home/lars/vmodel_output/testingPoly2_change_"+str(var_par[i])+"="+str(var_val[i])+"_"+args_str
+    #name = "/home/lars/vmodel_output/testingPoly2_change_"+str(var_par[i])+"="+str(var_val[i])+"_"+args_str
+    name = "/home/lars/vmodel_output/Boxtest_"+str(run+3)
     print(name)
 
-
+    run = i
     with h5py.File(file_h5) as fh5:
 
 
-        pos = np.moveaxis(np.array(fh5['/position']), [3,2], [1,3])[0,:,:,:]
-        vel = np.moveaxis(np.array(fh5['/velocity']), [3,2], [1,3])[0,:,:,:]
+        pos = np.moveaxis(np.array(fh5['/position']), [3,2], [1,3])[run,:,:,:]
+        vel = np.moveaxis(np.array(fh5['/velocity']), [3,2], [1,3])[run,:,:,:]
         vis = np.array(fh5['/visibility'])
 
     #print(np.shape(vis[0,nprey:nprey+npred,:nprey,:]))
 
-    vis_pred = vis[0,nprey:nprey+npred,:nprey,:]
+    vis_pred = vis[run,nprey:nprey+npred,:nprey,:]
 
     lines = pos[:,:,:]
     lines = pos
@@ -211,6 +212,18 @@ for i in range(runs):
     f, ax = plt.subplots(1)
     ax.axis('off')
     ax.set_aspect('equal')
+    
+    centerRadius = 10
+    #limSize = (math.sqrt(2)*centerRadius+centerRadius*2)/2
+    #ax.set_xlim(-limSize*1.2, limSize*1.2)
+    #ax.set_ylim(-limSize*1.2, limSize*1.2)
+
+
+    #circle = plt.Circle((0, 0), centerRadius, color='b', fill=False, linewidth = 1, alpha = 1)
+    #ax.add_artist(circle)
+
+    rect = patches.Rectangle((-centerRadius,-centerRadius, centerRadius, centerRadius, linewidth=1, edgecolor='r', facecolor='none')
+    ax.add_patch(rect)
     # Collect update-tasks
     #preds.colors = "r"
     #posDat.colors = "b"
@@ -233,7 +246,7 @@ for i in range(runs):
                                    frames=range(0-1, time), repeat=True)
 
 
-    plt.show()
+    #plt.show()
     anim.save(name + '.mp4', writer='ffmpeg', dpi=dpi, bitrate=-1, codec='libx264')
 
     

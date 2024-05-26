@@ -34,6 +34,8 @@ def generate_filename(args):
         'repCol': args.repulsion_col,
         'hstr': args.hunt_str,
         'steps': args.num_timesteps,
+        'fangle': round(args.flee_ang,3),
+        'pangle': args.pred_angle,
         #'runs': args.num_runs,
         #'times': args.num_timesteps,
         #'dist': args.ref_distance,

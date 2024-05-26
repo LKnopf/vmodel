@@ -1,0 +1,289 @@
+import sys
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib import animation
+import h5py
+import glob
+sys.path.insert(1, '/home/lars/predatorprey-1/predprey-staticnw/')
+#sys.path.insert(1, '/home/lars/predatorprey-1/predprey-16022022/')
+from animateSwarm import AnimateTools as at
+#from TsTools import general as gen
+from pathlib import Path
+import pickle
+from functools import partial
+from vmodel import geometry as vgeom
+from vmodel import plot
+from vmodel.util import color as vcolor
+import math
+import matplotlib.patches as patches
+
+def filter_front_target(pos, vel, target):
+    vel_self = vel[target]
+    pos_self = pos[target]
+    pos = np.delete(pos, target, axis=0)
+    pos = pos - pos_self
+    
+    
+    
+    
+    out_idx = []
+    for i in range(len(pos)):
+        
+        ort_pv = [0,0]
+        ort_pv[0] = -vel_self[1]
+        ort_pv[1] = vel_self[0]
+        
+        r_pi = np.array(pos[i])
+        if (-r_pi[0] * ort_pv[1] + r_pi[1] * ort_pv[0] < 0):
+            out_idx.append(i)
+            
+    return out_idx
+        
+def pavas2colors(pavas):
+    if np.std(pavas) > 1e-5:
+        colors = np.squeeze(pavas)
+        colors -= colors.min()
+        colors /= colors.max()
+    else:
+        colors = 'k'
+    return colors
+
+
+
+
+#file_h5 = str(file)+".h5"
+#file_dat = str(file)+".dat"
+
+
+
+mode = 'pictures' # 'normal', 'pictures', 'movie', 'gif'
+fps = 60 #60
+dpi = 200
+NsamShow = 4
+sizePrey = 1/4
+sizePred = sizePrey * 2
+cmap = plt.get_cmap('coolwarm') # alternatives 'bwr', 'Reds'
+
+
+
+
+# Construct output file name
+out_str = "/home/lars/vmodel_output/vmodel_output/npPred/"
+out_str = "/home/lars/vmodel_output/"
+args_def = {
+'nprey': 100,
+'npred': 5,
+'frange': 10,
+'fstr': 5,
+'visPred': 120,
+'visPrey': 330,
+'astr': 3,
+'dphi': 0.2,
+'repPrey': 1,
+'repRadPrey': 1,
+'repPred': 1,
+'repRadPred': 20,
+'attPrey': 2,
+'attRadPrey': 3,
+'repCol': 1000,
+'hstr': 1,
+'steps': 12000,
+    }
+
+args_def = {
+'nprey': 100,
+'npred': 1,
+'frange': 10,
+'fstr': 5,
+'visPred': 300.0,
+'visPrey': 330,
+'astr': 3,
+'dphi': 0.2,
+'repPrey': 3,
+'repRadPrey': 1.5,
+'repPred': 1,
+'repRadPred': 20,
+'attPrey': 3,
+'attRadPrey': 1.5,
+'repCol': 10000000,
+'hstr': 1,
+'steps': 1200,
+    }
+
+
+
+
+
+#list_args[1]["fstr"] = 20
+#list_args[2]["fstr"] = 50
+
+#list_args[3]["frange"] = 5
+#list_args[4]["frange"] = 20
+
+#list_args[5]["astr"] = 1
+#list_args[6]["astr"] = 10
+
+#list_args[0]["hstr"] = 5.0
+#list_args[1]["hstr"] = 20.0
+
+#list_args[2]["visPred"] = 60
+#list_args[3]["visPred"] = 30
+
+#list_args[4]["visPrey"] = 200
+#list_args[5]["visPrey"] = 100
+
+#var_par = ["fstr", "fstr", "fstr", "frange", "frange", "astr", "astr", "visPred", "visPred", "visPrey", "visPrey"]
+#var_val = [5, 20, 50, 5, 20, 1, 10, 60, 30, 200, 100]
+
+
+
+
+var_par = ["dphi", "dphi", "repRadPred", "repRadPred", "repRadPred", 'repPred', 'repPred', 'repPred','visPred', 'visPred', 'visPred' ]
+var_val = [0.01, 1.0, 5.0, 10.0, 25.0, 0.5, 2.0, 5.0, 90.0, 180.0, 300.0]
+
+
+
+var_par = ["npred"]
+var_val = [1]
+
+runs = len(var_par)
+#runs = 1
+
+list_args = []
+for i in range(runs):
+    list_args.append(args_def.copy())
+
+if len(var_par) != len(var_val):
+    sys.exit( "Lists do not match!")
+runs = 1
+
+for i in range(runs):
+    args = args_def
+    #args = list_args[i]
+    #args[var_par[i]] = var_val[i]
+    i = 0
+    npred = args["npred"]
+    nprey = args["nprey"]
+    nprey = 1
+
+    pred_visangle = 2*math.pi*args["visPred"]/360
+    prey_visangle = 2*math.pi*args["visPrey"]/360
+
+
+    #args_str = '_'.join(f'{k}_{v}' for k, v in args.items())
+    #file_h5 = f'{out_str}_{args_str}.states.nc'
+    file_h5 = "/home/lars/vmodel_output/testlimits__nprey_1_npred_1_frange_10_fstr_0.0_visPred_120_visPrey_280.0_astr_3.0_dphi_0.2_repPrey_3_repRadPrey_1.5_repPred_21_repRadPred_20_attPrey_3_attRadPrey_1.5_repCol_10000000_hstr_1_steps_2000_fangle_30.0_pangle_0.states.nc"
+
+
+    run = i
+
+    #file_h5 = "/home/lars/vmodel/output/state.nc"
+    #name = "/home/lars/vmodel_output/testingPoly2_change_"+str(var_par[i])+"="+str(var_val[i])+"_"+args_str
+    name = "/home/lars/vmodel_output/boxtest_"+str(i)+".mp4"
+    print(name)
+
+
+    with h5py.File(file_h5) as fh5:
+
+
+        #pos = np.moveaxis(np.array(fh5['/position']), [3,2], [1,3])[i,1750:2750,:100,:]
+        #vel = np.moveaxis(np.array(fh5['/velocity']), [3,2], [1,3])[i,1750:2750,:100,:]
+        #vis = np.array(fh5['/visibility'])[i,:100,:100,1750:2750]
+        
+        pos = np.moveaxis(np.array(fh5['/position']), [3,2], [1,3])[i,:,:1,:]
+        vel = np.moveaxis(np.array(fh5['/velocity']), [3,2], [1,3])[i,:,:1,:]
+        vis = np.array(fh5['/visibility'])[i,:1,:1,:]
+        
+    pos_pred = pos[:,nprey:,:]
+
+    
+    #print(np.shape(pos))
+
+
+    vis_pred = vis[nprey:nprey+npred,:nprey,:]
+
+    lines = pos[:,:,:]
+    lines = pos
+    linesDat = at.datCollector( lines )
+    posDat = at.datCollector( pos[:,:nprey,:] )
+    velDat = at.datCollector( vel )
+    pos_predDat = at.datCollector(pos_pred)
+    positions = [linesDat]
+    velocities = [velDat]
+
+    posDat.tail_length = 100
+    posDat.radius = .25
+    
+    pos_predDat.tail_length = 17
+    pos_predDat.radius = .25
+    
+    
+
+    # comment line below for colors representing alignment strength
+    colors = 'k'
+    # get info from files
+    time, N, _ = posDat.dat.shape 
+    vis_shift = vis[:,:,1:]
+    vis[:,:,:time-1] = vis_shift
+
+    f, ax = plt.subplots(1)
+    ax.axis('off')
+    ax.set_aspect('equal')
+    # Collect update-tasks
+    #preds.colors = "r"
+    colors = []
+    for kk in range(nprey):
+        colors.append("grey")
+    
+    posDat.colors = colors
+    pos_predDat.colors = "r"
+    
+    centerRadius = 20
+    #limSize = (math.sqrt(2)*centerRadius+centerRadius*2)/2
+    #ax.set_xlim(-limSize*1.2, limSize*1.2)
+    #ax.set_ylim(-limSize*1.2, limSize*1.2)
+
+
+    #circle = plt.Circle((0, 0), centerRadius, color='b', fill=False, linewidth = 1, alpha = 1)
+    #ax.add_artist(circle)
+
+    rect = patches.Rectangle((-centerRadius/2,-centerRadius/2), centerRadius, centerRadius, linewidth=1, edgecolor='r', facecolor='none')
+    ax.add_patch(rect)
+    
+    tasks = at.taskCollector()
+    
+    target = 0
+    
+    ax.set_xlim(-centerRadius*1.2, centerRadius*1.2)
+    ax.set_ylim(-centerRadius*1.2, centerRadius*1.2)
+    
+    tasks.append( at.headAndTail(posDat, ax))
+    tasks.append( at.headAndTail(pos_predDat, ax))
+    tasks.append( at.movingArrows(posDat, ax, color = "white", noShaft = True))
+    
+    #tasks.append( at.cleanup_patches(ax))
+    #tasks.append( at.plot_nselect_visual(ax, pos, vel, vis, nprey, npred, 280, target))
+    #tasks.append( at.plot_nselect_visual_2(ax, pos, focal = target))
+    #tasks.append( at.circle_com(pos, ax, radius = 2))
+    
+    #tasks.append( at.Limits4Pos(positions, ax) )
+
+    #tasks.append( at.color_vis(pos, vel, posDat, vis, nprey, target))
+
+
+    #tasks.append( at.plotpdf(f))
+    #tasks.append( at.vision_cones(ax, pos, vel, npred, nprey, pred_visangle, 100))
+    #tasks.append( at.color_front(pos, vel, posDat, npred, nprey))
+
+    # animation
+    interval = 1000*(1/fps) # interval in ms
+    anim = animation.FuncAnimation(f, tasks.update, interval=interval,
+                                   frames=range(0-1, time), repeat=True)
+
+
+    plt.show()
+    anim.save(name + '.mp4', writer='ffmpeg', dpi=dpi, bitrate=-1, codec='libx264')
+
+    
+    

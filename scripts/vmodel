@@ -34,6 +34,8 @@ from vmodel.util.util import human_readable as hr
 from vmodel.visibility import visibility_graph
 from vmodel.math import limit_norm
 
+import scipy.spatial
+
 SCRIPT = os.path.basename(__file__)
 
 def circle_sections(divisions, radius=1):
@@ -49,7 +51,7 @@ def circle_sections(divisions, radius=1):
 def getCOM(positions):
     return np.mean(positions, axis = 0)
 
-def init_pos(N, cC, sigma_space = 1):
+def init_pos(N, cC, sigma_space = 0.5):
     circle = cC
     
     rep_range = 1
@@ -74,7 +76,7 @@ def init_pos(N, cC, sigma_space = 1):
 
         ii = rand_idx[i]
         if i == Ncap:
-            circle += 2
+            circle += 1
             Ncir = int(2*M_PI*circle); # length of circumference
             Ncap += Ncir
             ccircle = 0
@@ -85,7 +87,7 @@ def init_pos(N, cC, sigma_space = 1):
         x1 = rep_range*circle*np.sin(angle) + sigma_space*rand2[i]
 
         allprey[ii] = [x0, x1]
-        ccircle += 2
+        ccircle += 1
                 
     return np.array(allprey)
             
@@ -124,7 +126,7 @@ def run(r, args, func):
 
     
 
-    
+    pred_start = False
     positions = init_pos(args.num_agents, 1)
     
     
@@ -137,9 +139,39 @@ def run(r, args, func):
 
     #INITIATE preds and preys
     velocities = np.zeros_like(positions)
+    
+    #INITIATE AS MILLING
+    com = ((np.mean(positions[:,0]), np.mean(positions[:,1])))
+    dir_com = com - positions
+    
+    for i in range(len(positions[:,0])):
+        
+        A = dir_com[i,:]
+
+        theta = np.radians(90)
+        c, s = np.cos(theta), np.sin(theta)
+        R = np.array(((c,-s), (s, c)))
+        
+
+        A = np.dot(R, A)
+        A /= np.linalg.norm(A)
+        velocities[i,:] = A
+    
+    
+    
     velocities_p = np.zeros_like(positions_p)
     velocities = np.append(velocities,velocities_p, axis = 0)
+    
+    
+    
+    
+    
     positions = np.append(positions,positions_p, axis = 0)
+    
+    #for testing single agent
+    positions[0] = 0,0
+    velocities[0] = -1,0
+
     
   
 
@@ -168,12 +200,31 @@ def run(r, args, func):
         ### velocities may be redundant
         if t >= args.pred_time * dt and pred_start == False:
             com = getCOM(positions[0:args.num_agents])
-            print("com", com)
+            com_dist = []
             
-            angle_pred = np.random.randint(0,360,args.num_preds)
+            #get prey furthest from swarm
+            for prey in range(args.num_agents):
+            	com_dist.append(np.linalg.norm(positions[prey]-com))
+            
+            farthest_prey = np.max(com_dist)
+            
+            #print("com", com)
+            
+            
+            if args.pred_angle < 0 or args.num_preds > 1:
+                angle_pred = np.random.randint(0,360,args.num_preds)
+            else:
+                prey_heading = np.mean(velocities[:args.num_agents], axis = 0)
+                prey_heading /= np.linalg.norm(prey_heading)
+                prey_angle = 180*np.arctan2(prey_heading[1], prey_heading[0])/math.pi
+                angle_pred = [prey_angle + args.pred_angle]
+                #print(prey_heading, prey_angle, args.pred_angle, angle_pred)
+                
+                
             positions_p = []
             velocities_p = []
-            radius = 15
+            radius = args.pred_dist+farthest_prey
+            radius = 21.5
             for ii in angle_pred:
                 positions_p.append((radius*math.cos(ii*math.pi/180), radius*math.sin(ii*math.pi/180))+com)
             
@@ -184,7 +235,7 @@ def run(r, args, func):
 
             positions[args.num_agents:args.num_agents+args.num_preds] = positions_p
             velocities[args.num_agents:args.num_agents+args.num_preds] = velocities_p
-            print("newpos", positions[args.num_agents:args.num_agents+args.num_preds])
+            #print("newpos", positions[args.num_agents:args.num_agents+args.num_preds])
             
             
             
@@ -215,13 +266,16 @@ def run(r, args, func):
 
         # List to hold precomputed distance and visibilityconcatenate data
         vis_list, dist_list = [], []
+        
+        # Compute all distances between agents
+        dist_full = scipy.spatial.distance.cdist(positions, positions)
 
         # Compute updates, either in parallel or sequentially
         if args.parallel_agents:
-            args_list = [(i, positions, velocities, func, args, pred_hunt, t, pastCOM_set, pred_start) for i in range(nagents+args.num_preds)]
+            args_list = [(i, positions, velocities, func, args, pred_hunt, t, pastCOM_set, pred_start, dist_full) for i in range(nagents+args.num_preds)]
             updates = pool.starmap_async(update_single, args_list).get(9999999)
         else:
-            updates = [update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM_set, pred_start) for i in range(nagents+args.num_preds)]
+            updates = [update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM_set, pred_start, dist_full) for i in range(nagents+args.num_preds)]
             
 
         
@@ -249,7 +303,7 @@ def run(r, args, func):
             # Compute new position from velocity command
             #print(i, cmd)
             pos = positions[i] + cmd * dt
-            
+
 
             # Save position and velocity
             
