@@ -58,6 +58,7 @@ def create_dataset(datas, args):
     time = np.array(datas[0].time)
     pos = np.array([d.pos for d in datas])
     vel = np.array([d.vel for d in datas])
+    flee = np.array([d.flee for d in datas])
 
     coord_run = np.arange(args.num_runs, dtype=int) + 1
     coord_time = pd.to_timedelta(time, unit='s')
@@ -70,7 +71,14 @@ def create_dataset(datas, args):
         'agent': coord_agent,
         'space': coord_space
     }
-
+    
+    coords_flee = {
+        'run': coord_run,
+        'time': coord_time,
+        'agent': np.arange(args.num_agents, dtype=int)+1,
+        'space': coord_space
+    }
+    
     dapos = xr.DataArray(pos, dims=coords_rtas.keys(), coords=coords_rtas)
     dapos.attrs['units'] = 'meters'
     dapos.attrs['long_name'] = 'position'
@@ -80,6 +88,13 @@ def create_dataset(datas, args):
     davel.attrs['units'] = 'meters/second'
     davel.attrs['long_name'] = 'velocity'
     ds['velocity'] = davel
+    
+    #daflee = xr.DataArray(flee, dims=coords_rtas.keys(), coords=coords_rtas)
+    daflee = xr.DataArray(flee, dims=coords_flee.keys(), coords=coords_flee)
+    dapos.attrs['units'] = 'meters'
+    dapos.attrs['long_name'] = 'magnitude'
+    ds['flee'] = daflee
+
 
     ds = ds.transpose('run', 'agent', 'space', 'time')
 

@@ -110,7 +110,7 @@ def run(r, args, func):
                          desc=f'[vmodel] [run {r + 1}]', position=r)
 
     data = argparse.Namespace()
-    data.time, data.pos, data.vel, data.vis, data.dist = [], [], [], [], []
+    data.time, data.pos, data.vel, data.vis, data.dist, data.flee = [], [], [], [], [], []
 
     if args.plot:
         # _, (axpos, axdist, axvel) = plt.subplots(num='Plot', figsize=(7, 10), nrows=3,
@@ -128,6 +128,8 @@ def run(r, args, func):
 
     pred_start = False
     positions = init_pos(args.num_agents, 1)
+    
+    prey_flee = np.zeros((args.num_agents, 2))
     
     
     positions_p = init_pos(args.num_preds, 10)
@@ -155,7 +157,8 @@ def run(r, args, func):
 
         A = np.dot(R, A)
         A /= np.linalg.norm(A)
-        velocities[i,:] = A
+        if args.millstart == 1:
+            velocities[i,:] = A
     
     
     
@@ -169,8 +172,8 @@ def run(r, args, func):
     positions = np.append(positions,positions_p, axis = 0)
     
     #for testing single agent
-    positions[0] = 0,0
-    velocities[0] = -1,0
+    #positions[0] = 0,0
+    #velocities[0] = -1,0
 
     
   
@@ -186,6 +189,7 @@ def run(r, args, func):
     data.vel.append(velocities.copy())
     data.dist.append(geometry.distance_matrix(positions))
     data.vis.append(visibility_graph(positions, args.radius))
+    data.flee.append(prey_flee.copy())
 
     # Compute metrics for zeroth timestep
     if args.plot_metrics:
@@ -223,7 +227,7 @@ def run(r, args, func):
                 
             positions_p = []
             velocities_p = []
-            radius = args.pred_dist+farthest_prey
+            #radius = args.pred_dist+farthest_prey
             radius = 21.5
             for ii in angle_pred:
                 positions_p.append((radius*math.cos(ii*math.pi/180), radius*math.sin(ii*math.pi/180))+com)
@@ -272,16 +276,16 @@ def run(r, args, func):
 
         # Compute updates, either in parallel or sequentially
         if args.parallel_agents:
-            args_list = [(i, positions, velocities, func, args, pred_hunt, t, pastCOM_set, pred_start, dist_full) for i in range(nagents+args.num_preds)]
+            args_list = [(i, positions, velocities, prey_flee, func, args, pred_hunt, t, pastCOM_set, pred_start, dist_full) for i in range(nagents+args.num_preds)]
             updates = pool.starmap_async(update_single, args_list).get(9999999)
         else:
-            updates = [update_single(i, positions, velocities, func, args, pred_hunt, t, pastCOM_set, pred_start, dist_full) for i in range(nagents+args.num_preds)]
+            updates = [update_single(i, positions, velocities, prey_flee, func, args, pred_hunt, t, pastCOM_set, pred_start, dist_full) for i in range(nagents+args.num_preds)]
             
 
         
         for i in range(nagents+args.num_preds):
 
-            cmd, cache, pred_hunt, pastCOM, pos_prey = updates[i]
+            cmd, cache, pred_hunt, pastCOM, pos_prey, prey_flee = updates[i]
             
 
             if pred_start == False and i >= args.num_agents:
@@ -323,12 +327,14 @@ def run(r, args, func):
         
         
         # Save data
-        #if t >= 0:
-        if pred_start == True:
+        if t >= 0:
+        #if pred_start == True:
             if k % args.save_every == 0:
                 data.time.append(t)
                 data.pos.append(positions.copy())
                 data.vel.append(velocities.copy())
+                data.flee.append(prey_flee.copy())
+                prey_flee = np.zeros((args.num_agents, 2))
                 
                 # Save visbility in any case
                 vmat = [np.insert(vs, i, False) for i, vs in enumerate(vis_list)]

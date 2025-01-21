@@ -53,16 +53,16 @@ def parse_vmodel_args() -> argparse.Namespace:
     algorithms = ['reynolds', 'olfati']
     spawns = ['poisson', 'uniform', 'grid']
     experiment = parser.add_argument_group('experiment arguments')
-    experiment.add_argument('--num-agents', type=int, default=10, metavar='N',
+    experiment.add_argument('--num-agents', type=int, default=100, metavar='N',
                             help='number of agents')
     experiment.add_argument('--num-runs', type=int, default=1, metavar='N',
                             help='number of runs')
     experiment.add_argument('--num-dims', type=int, default=2, metavar='N',
                             help='number of dimensions')
-    experiment.add_argument('--delta-time', type=float, default=0.1,
+    experiment.add_argument('--delta-time', type=float, default=0.02,
                             metavar='SEC',
                             help='time delta between timesteps [s]')
-    experiment.add_argument('--num-timesteps', type=int, default=None,
+    experiment.add_argument('--num-timesteps', type=int, default=1000,
                             metavar='K',
                             help='number of timesteps for experiment')
     experiment.add_argument('--algorithm', choices=algorithms,
@@ -76,8 +76,11 @@ def parse_vmodel_args() -> argparse.Namespace:
     #############################################################
     #new args
     #############################################################
-    experiment.add_argument('--num-preds', type=int, default=5, metavar='NP',
+    experiment.add_argument('--num-preds', type=int, default=1, metavar='NP',
                             help='number of predators')
+                            
+    experiment.add_argument('--millstart', type=int, default=0, metavar='NP',
+                            help='whether to start swarm in milling pattern')
     
     experiment.add_argument('--flee-range', type=float, default=10, metavar='NP',
                             help='range at which prey flees')
@@ -88,7 +91,7 @@ def parse_vmodel_args() -> argparse.Namespace:
     experiment.add_argument('--flee-ang', type=float, default=30, metavar='NP',
                             help='fleeing angle for prey')
     
-    experiment.add_argument('--hunt-str', type=float, default=1, metavar='NP',
+    experiment.add_argument('--hunt-str', type=float, default=2, metavar='NP',
                             help='magnitude of hunt force')
     
     experiment.add_argument('--vision-prey', type=float, default=330, metavar='NP',
@@ -104,19 +107,19 @@ def parse_vmodel_args() -> argparse.Namespace:
                             help='noise magnitude for movement')
     
     experiment.add_argument('--repulsion-prey', type=float, default=3, metavar='NP',
-                            help='magnitude of prey-prey repulsion')
+                            help='magnitude of prey-prey repulsion') #3
     
     experiment.add_argument('--attraction-prey', type=float, default=3, metavar='NP',
-                            help='magnitude of prey-prey attraction')
+                            help='magnitude of prey-prey attraction') #3
     
     experiment.add_argument('--repulsion-pred', type=float, default=21, metavar='NP',
                             help='magnitude of pred-pred repulsion')
     
     experiment.add_argument('--repradius-prey', type=float, default=1.5, metavar='NP',
-                            help='radius of prey-prey repulsion')
+                            help='radius of prey-prey repulsion') #1.5
     
     experiment.add_argument('--attradius-prey', type=float, default=1.5, metavar='NP',
-                            help='radius of prey-prey attraction')
+                            help='radius of prey-prey attraction') #1.5
     
     experiment.add_argument('--repradius-pred', type=float, default=20, metavar='NP',
                             help='radius of pred-pred num-ulsion')
@@ -140,7 +143,7 @@ def parse_vmodel_args() -> argparse.Namespace:
                             help='angle relative to swarm velocity the predator gets initialized with, if negative, random angles are chosen')
     
     experiment.add_argument('--pred-dist', type=int, default=10, metavar='PD',
-                            help='distance to COM of prey the predator gets initialized with')
+                            help='distance to prey farthest of COM the predator gets initialized with')
     
     experiment.add_argument('--col-style', type=int, default=1, metavar='CS',
                             help='0: no collisions, 1: only react to closest collision, 2: account for multiple collisions')

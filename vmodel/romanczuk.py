@@ -30,14 +30,14 @@ def flock(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: np.n
 
     f_rep = np.zeros(2)
     n_rep = 0
-    
+
     for i in range(len(pos)):
         dist = dist_full[i]
         pos_dif[i] = pos[i] / dist
         f_repChange, coll = att(dist, np.array(pos_dif[i]), args)
         #f_repChange, coll = attDRA(dist, np.array(pos_dif[i]), args)
         f_rep += f_repChange
-        
+
     if len(pos) == 0:
         f_rep = rep_strength * f_rep * 0
         f_alg = alg_strength * f_alg * 0
@@ -50,6 +50,7 @@ def flock(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: np.n
         #print("falg", f_alg)
     
     force = f_alg + f_rep
+    
     
     return force
 
@@ -106,10 +107,10 @@ def flock_col(pos_self: np.ndarray, pos: np.ndarray, vel_self: np.ndarray, vel: 
         
     
     #part for physical world limits
-    sizebox = 10 
-    if abs(pos_self[0])+args.prey_size+args.delta_time > sizebox or abs(pos_self[1]) +args.prey_size+args.delta_time > sizebox:
-    	col_set = "front"
-    	vel_col = -vel_self
+    #sizebox = 10 
+    #if abs(pos_self[0])+args.prey_size+args.delta_time > sizebox or abs(pos_self[1]) +args.prey_size+args.delta_time > sizebox:
+    #	col_set = "front"
+    #	vel_col = -vel_self
 
 
 
@@ -131,7 +132,8 @@ def addForces(flock, flee, vel_self, args, seekPrey = False, pred=False):
     
     
     force = (flock+flee)
-    
+
+
     phi_f_dir = np.arctan2(force[1],force[0])
 
     
@@ -160,8 +162,9 @@ def addForces(flock, flee, vel_self, args, seekPrey = False, pred=False):
         
 
         #check later if needed again
-        #if np.sign(phi_diff) != np.sign(phi_diff_after):
+        #if np.sign(phi_diff) != np.sign(phi_diff_after) and phi_f != 0:
         #    phi = phi_f_dir
+
 
         phi = math.fmod(phi, 2 * math.pi)
         phi = math.fmod(2*math.pi+phi, 2 * math.pi)
@@ -221,15 +224,15 @@ def flee(idx_pred_vis, idx, pos, vel, args, pos_self):
         ang = math.fmod(ang, 2 * math.pi)
         ang = math.fmod(2*math.pi+ang, 2 * math.pi)
         
-        
+        x0 = args.flee_range
 
-        if (dist_pred > 0.0):
+        if (dist_pred > 0):
 
             command_flee[0] = np.cos(ang)
             command_flee[1] = np.sin(ang)
 
         steepness = -1
-        x0 = args.flee_range
+        
         
         fleestr = 0
         
@@ -241,6 +244,9 @@ def flee(idx_pred_vis, idx, pos, vel, args, pos_self):
     if abs(command_flee_pred[0])+abs(command_flee_pred[1]) != 0:
         command_flee_pred = command_flee_pred/abs(np.linalg.norm(command_flee_pred))
     #print("flee", command_flee_pred)
+    
+    #print(command_flee_pred*args.flee_strength, command_flee_pred, args.flee_strength, np.linalg.norm(command_flee_pred*args.flee_strength), np.linalg.norm(command_flee_pred))
+    
     return command_flee_pred*args.flee_strength
 
 
@@ -256,7 +262,7 @@ def att(dist_interaction, dif, args):
 
     coll = False
     
-    
+
 
         
     if (abs(dist_interaction) < l0):
